@@ -9,6 +9,7 @@ import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/manager/core_manager.dart';
 import 'package:fl_clash/manager/status_manager.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
@@ -26,6 +27,30 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../helpers/test_profiles.dart';
 
 class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {}
+
+class _RecordingCoreAction extends CoreAction {
+  int restarts = 0;
+  Exception? restartError;
+
+  @override
+  Future<bool> restartCore() async {
+    restarts++;
+    final error = restartError;
+    if (error != null) {
+      throw error;
+    }
+    return true;
+  }
+}
+
+class _RecordingSetupAction extends SetupAction {
+  int abandoned = 0;
+
+  @override
+  void abandonRunning() {
+    abandoned++;
+  }
+}
 
 class _FakePathProvider extends PathProviderPlatform {
   final String root;
@@ -236,6 +261,94 @@ void main() {
     expect(find.text('boom'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  group('crash recovery', () {
+    late _RecordingCoreAction coreAction;
+    late _RecordingSetupAction setupAction;
+
+    Future<ProviderContainer> pumpRecovery(WidgetTester tester) async {
+      final container = await _pumpCoreManager(
+        tester,
+        _coreInterface(),
+        overrides: [
+          coreActionProvider.overrideWith(
+            () => coreAction = _RecordingCoreAction(),
+          ),
+          setupActionProvider.overrideWith(
+            () => setupAction = _RecordingSetupAction(),
+          ),
+        ],
+      );
+      container.read(coreActionProvider.notifier);
+      container.read(setupActionProvider.notifier);
+      return container;
+    }
+
+    // The shared event stream delivers in the zone it was first listened in,
+    // so a timer it starts would escape this test's fake clock.
+    Future<void> crash(WidgetTester tester, ProviderContainer container) async {
+      container.read(coreStatusProvider.notifier).value = CoreStatus.connected;
+      final listener =
+          tester.state(find.byType(CoreManager)) as CoreEventListener;
+      listener.onCrash('boom');
+      await tester.pump();
+    }
+
+    testWidgets('restarts the core after a backoff', (tester) async {
+      final container = await pumpRecovery(tester);
+
+      await crash(tester, container);
+      expect(coreAction.restarts, 0);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(coreAction.restarts, 1);
+      expect(setupAction.abandoned, 0);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('stops running when the core keeps crashing', (tester) async {
+      final container = await pumpRecovery(tester);
+
+      for (var i = 0; i < 3; i++) {
+        await crash(tester, container);
+        await tester.pump(const Duration(seconds: 3));
+      }
+      expect(coreAction.restarts, 3);
+      expect(setupAction.abandoned, 0);
+
+      await crash(tester, container);
+      await tester.pump(const Duration(seconds: 5));
+
+      expect(coreAction.restarts, 3);
+      expect(setupAction.abandoned, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('stops running when the restart fails', (tester) async {
+      final container = await pumpRecovery(tester);
+      coreAction.restartError = Exception('core did not start');
+
+      await crash(tester, container);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(coreAction.restarts, 1);
+      expect(setupAction.abandoned, 1);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a crash after unmounting does not restart', (tester) async {
+      final container = await pumpRecovery(tester);
+
+      await crash(tester, container);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(coreAction.restarts, 0);
+    });
   });
 
   testWidgets('the log stream follows the openLogs setting', (tester) async {

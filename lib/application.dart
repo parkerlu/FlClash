@@ -136,7 +136,11 @@ class ApplicationState extends ConsumerState<Application> {
 
   void _autoUpdateProfilesTask() {
     _autoUpdateProfilesTaskTimer = Timer(const Duration(minutes: 20), () async {
-      await ref.read(profilesActionProvider.notifier).autoUpdateProfiles();
+      try {
+        await ref.read(profilesActionProvider.notifier).autoUpdateProfiles();
+      } catch (e) {
+        commonPrint.log('auto update profiles failed: ${compactError(e)}');
+      }
       if (!mounted) {
         return;
       }

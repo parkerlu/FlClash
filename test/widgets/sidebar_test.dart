@@ -32,6 +32,7 @@ Widget _sidebar({
   VoidCallback? onToggle,
   Size windowControls = Size.zero,
   EdgeInsets safePadding = EdgeInsets.zero,
+  Widget? footer,
 }) {
   return TestApp(
     child: Scaffold(
@@ -49,6 +50,7 @@ Widget _sidebar({
                   onSelected: onSelected ?? (_) {},
                   onToggle: onToggle,
                   windowControls: windowControls,
+                  footer: footer,
                 ),
               ),
             ),
@@ -227,6 +229,27 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(glyph('Collapse'), isNot(midway));
+  });
+
+  testWidgets('the footer sits below the last row in both widths', (
+    tester,
+  ) async {
+    for (final expanded in [true, false]) {
+      await tester.pumpWidget(
+        _sidebar(expanded: expanded, footer: const Text('p1.0')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('p1.0'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('p1.0')).dy,
+        greaterThan(tester.getBottomLeft(_glyph(AppGlyphs.profiles)).dy),
+      );
+      expect(
+        tester.getBottomLeft(find.text('p1.0')).dy,
+        lessThanOrEqualTo(tester.getBottomLeft(_sidebarFinder).dy),
+      );
+    }
   });
 
   testWidgets('window controls keep their corner clear', (tester) async {

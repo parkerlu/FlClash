@@ -680,7 +680,7 @@ func handleStartLog() {
 		logCancel = nil
 	}
 	if logSubscriber != nil {
-		log.UnSubscribe(logSubscriber)
+		unsubscribeLog(logSubscriber)
 		logSubscriber = nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -689,11 +689,11 @@ func handleStartLog() {
 	logCancel = cancel
 	logMu.Unlock()
 
-	go func() {
+	safeGoDetached("log subscriber", func() {
 		defer func() {
 			logMu.Lock()
 			if logSubscriber == subscriber {
-				log.UnSubscribe(subscriber)
+				unsubscribeLog(subscriber)
 				logSubscriber = nil
 				logCancel = nil
 			}
@@ -716,7 +716,18 @@ func handleStartLog() {
 				})
 			}
 		}
+	})
+}
+
+// mihomo emits to a subscriber with a blocking send while holding the lock
+// UnSubscribe needs, so a subscriber nobody reads any more is drained until
+// UnSubscribe closes it; otherwise a full buffer stalls every log call.
+func unsubscribeLog(subscriber observable.Subscription[log.Event]) {
+	go func() {
+		for range subscriber {
+		}
 	}()
+	log.UnSubscribe(subscriber)
 }
 
 func handleStopLog() {
@@ -727,7 +738,7 @@ func handleStopLog() {
 		logCancel = nil
 	}
 	if logSubscriber != nil {
-		log.UnSubscribe(logSubscriber)
+		unsubscribeLog(logSubscriber)
 		logSubscriber = nil
 	}
 }

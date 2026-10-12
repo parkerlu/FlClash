@@ -565,6 +565,28 @@ void main() {
         await action.setRunning(false);
       });
 
+      test('abandoning a lost core clears the run state locally', () async {
+        final container = ProviderContainer(
+          overrides: [
+            initProvider.overrideWithBuild((_, _) => true),
+            commonActionProvider.overrideWith(_RaceCommonAction.new),
+            setupActionProvider.overrideWith(_RaceSetupAction.new),
+          ],
+        );
+        addTearDown(container.dispose);
+        final action =
+            container.read(setupActionProvider.notifier) as _RaceSetupAction;
+        await action.setRunning(true);
+        action.transitions.clear();
+
+        action.abandonRunning();
+
+        expect(container.read(isStartProvider), isFalse);
+        expect(container.read(runTimeProvider), isNull);
+        expect(container.read(proxyStateProvider).isStart, isFalse);
+        expect(action.transitions, isEmpty);
+      });
+
       test('serializes listener changes while latest start owns UI', () async {
         final stopCompleter = Completer<bool>();
         final container = ProviderContainer(

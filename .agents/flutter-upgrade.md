@@ -30,6 +30,23 @@ listed in the SDK's `CHANGELOG.md`.
   dashboard pages on an Intel Mac with its integrated GPU driving the built-in display; an external display can
   switch to the discrete GPU and hide the flicker.
 
+## macOS back buffer cache returns a surface of the wrong size
+
+- **Bug:** [flutter/flutter#185394](https://github.com/flutter/flutter/issues/185394). `removeSurfaceForSize:` in
+  `FlutterBackBufferCache` (`FlutterSurfaceManager.mm`) purges only when its first cached surface has another size,
+  then returns the youngest free surface without checking its size. After the window's pixel size changes (resize,
+  hide and show, a display or scale change after sleep), Impeller can get a surface whose `MTLTexture` disagrees with
+  the requested size, `RenderTarget::SetColorAttachment` drops it as invalid, and `Canvas::SetupRenderPass` reads the
+  null texture: `EXC_BAD_ACCESS` at `0x0` on `io.flutter.raster`, seen on Apple Silicon release builds of 3.47.4
+  (engine `06a2e2a1`, `canvas.cc:1615`) after hours in the tray.
+- **Workaround:** `SurfaceCacheGuard` in the `window` plugin (`plugins/window/macos/window/Sources/window/`) swaps the
+  method's implementation when the plugin registers: it keeps pulling surfaces until one has the requested size and
+  drops the rest, so a mismatch becomes a cache miss and the engine allocates a new surface. It checks the class
+  names and type encodings first and logs `SurfaceCacheGuard: not installed` instead of swapping when they differ.
+- **Remove when:** the pinned engine checks the surface size in `removeSurfaceForSize:` (PR
+  [flutter/flutter#192522](https://github.com/flutter/flutter/pull/192522) or a successor). Check by reading
+  `FlutterSurfaceManager.mm` at the new engine revision.
+
 ## Windows view visibility forwarded by the runner
 
 - **Bug:** the Windows embedder's `WindowsLifecycleManager` counts the Flutter view as a window of its own and keeps

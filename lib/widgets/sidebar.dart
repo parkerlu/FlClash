@@ -42,6 +42,7 @@ class NavigationSidebar extends StatefulWidget {
     required this.onSelected,
     this.onToggle,
     this.windowControls = Size.zero,
+    this.footer,
   });
 
   final List<SidebarDestination> destinations;
@@ -50,6 +51,7 @@ class NavigationSidebar extends StatefulWidget {
   final ValueChanged<int> onSelected;
   final VoidCallback? onToggle;
   final Size windowControls;
+  final Widget? footer;
 
   @override
   State<NavigationSidebar> createState() => _NavigationSidebarState();
@@ -132,6 +134,7 @@ class _NavigationSidebarState extends State<NavigationSidebar>
                 _closeOverlay();
               },
               onToggle: _closeOverlay,
+              footer: widget.footer,
             ),
           ),
         );
@@ -149,6 +152,7 @@ class _NavigationSidebarState extends State<NavigationSidebar>
             selectedIndex: widget.selectedIndex,
             onSelected: widget.onSelected,
             onToggle: _handleToggle,
+            footer: widget.footer,
           ),
         ),
       ),
@@ -251,6 +255,7 @@ class _SidebarPane extends StatelessWidget {
     required this.selectedIndex,
     required this.onSelected,
     required this.onToggle,
+    required this.footer,
   });
 
   final double progress;
@@ -260,6 +265,7 @@ class _SidebarPane extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback onToggle;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -348,6 +354,10 @@ class _SidebarPane extends StatelessWidget {
               ),
             ),
           ),
+          if (footer case final footer?) ...[
+            const SizedBox(height: _itemGap),
+            Center(child: footer),
+          ],
           const SizedBox(height: _verticalInset),
         ],
       ),

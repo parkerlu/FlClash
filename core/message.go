@@ -203,7 +203,14 @@ type messageBatchCall struct {
 	Arguments []Message  `json:"arguments"`
 }
 
+// Request events marshal live trackers, and a panic here would end the batcher
+// and with it every event the host receives, so it costs only this batch.
 func sendMessageBatch(messages []Message) {
+	defer func() {
+		if r := recover(); r != nil {
+			logDeliveryError("panic in message batch, dropped %d events: %v\n%s", len(messages), r, stackTrace())
+		}
+	}()
 	data, err := json.Marshal(messageBatchCall{
 		Method:    messageMethod,
 		Arguments: messages,

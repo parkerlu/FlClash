@@ -4,6 +4,7 @@ import 'package:fl_clash/manager/status_manager.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/glyph_finders.dart';
@@ -206,6 +207,24 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets(
+    'an expiring message is dropped at once while the app is hidden',
+    (tester) async {
+      final state = await _pumpStatusManager(tester);
+      ProviderScope.containerOf(
+        tester.element(find.byType(StatusManager)),
+      ).read(appVisibleProvider.notifier).value = false;
+      state.message('unseen');
+      await tester.pumpAndSettle();
+
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('unseen'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('merges a repeat instead of queueing it again', (tester) async {
     final state = await _pumpStatusManager(tester);

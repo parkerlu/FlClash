@@ -181,6 +181,11 @@ class StatusManagerState extends ConsumerState<StatusManager> {
     if (index == -1 || !entries[index].visible) {
       return;
     }
+    // A hidden window draws no frames, so no exit animation would remove it.
+    if (!ref.read(appVisibleProvider)) {
+      _removeMessage(id);
+      return;
+    }
     _entriesNotifier.value = List<_MessageEntry>.from(entries)
       ..[index] = entries[index].copyWith(visible: false, swiped: swiped);
   }

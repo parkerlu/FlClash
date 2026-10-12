@@ -146,7 +146,10 @@ caller, and uses a three-second watchdog as an emergency application-exit path. 
   cleaned up, preventing two Core instances from being treated as the active session. Terminal close may continue on a
   best-effort basis because the application is exiting.
 - An unexpected disconnect or transport failure while running is converted to `DesktopCoreFailure`, the owned process is
-  cleaned up, and `CoreService` emits a Core crash event for the normal UI recovery path.
+  cleaned up, and `CoreService` emits a Core crash event for the normal UI recovery path. `CoreManager.onCrash` answers
+  it through `CoreAction.restartCore()` after a short backoff, at most three times in five minutes; past that, or when
+  the restart throws, `SetupAction.abandonRunning()` drops the local run state without calling the dead Core, so the
+  system proxy and tray stop pointing at a port nothing listens on.
 
 Direct launch is used on macOS, inside an AppImage, and as the Windows/Linux fallback when the privileged Helper is not
 ready. When the Helper is ready, it owns the Core child and Dart owns it through a session-scoped lease.
