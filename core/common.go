@@ -194,7 +194,10 @@ func setTestURL(url string) {
 	if url == "" {
 		return
 	}
-	constant.DefaultTestURL = url
+	// mihomo reads it without a lock, so an unchanged link is never rewritten.
+	if constant.DefaultTestURL != url {
+		constant.DefaultTestURL = url
+	}
 	testURL.Store(&url)
 }
 

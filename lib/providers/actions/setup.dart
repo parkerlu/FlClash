@@ -185,6 +185,22 @@ class SetupAction extends _$SetupAction {
     return true;
   }
 
+  // The Core that held the listener has exited, so only the local state is left
+  // to stop; leaving it running keeps the system proxy on a dead port.
+  void abandonRunning() {
+    if (_startTime == null) {
+      return;
+    }
+    _latestRunRequest = _RunRequest(
+      running: false,
+      initialize: false,
+      previousStartTime: _startTime,
+    );
+    _setLocalRunning(false);
+    ref.read(trafficsProvider.notifier).clear();
+    ref.read(totalTrafficProvider.notifier).value = const Traffic();
+  }
+
   Future<bool> _stop(_RunRequest request) async {
     try {
       await _setCoreRunning(request);

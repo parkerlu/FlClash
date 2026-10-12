@@ -1033,3 +1033,28 @@ func TestDumpRuleSetRejectsText(t *testing.T) {
 		t.Fatal("dumping a text rule set succeeded")
 	}
 }
+
+func TestUnsubscribeLogReleasesAFullSubscriber(t *testing.T) {
+	subscriber := log.Subscribe()
+	emitted := make(chan struct{})
+	go func() {
+		defer close(emitted)
+		for i := 0; i < 400; i++ {
+			log.Debugln("flood %d", i)
+		}
+	}()
+	time.Sleep(50 * time.Millisecond)
+
+	unsubscribed := make(chan struct{})
+	go func() {
+		defer close(unsubscribed)
+		unsubscribeLog(subscriber)
+	}()
+	for _, done := range []chan struct{}{unsubscribed, emitted} {
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("log pipeline deadlocked on an unread subscriber")
+		}
+	}
+}

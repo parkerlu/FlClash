@@ -24,6 +24,12 @@ class CoreManager extends ConsumerStatefulWidget {
 
 class _CoreContainerState extends ConsumerState<CoreManager>
     with CoreEventListener {
+  static const _crashWindow = Duration(minutes: 5);
+  static const _maxCrashRestarts = 3;
+
+  final _recentCrashes = <DateTime>[];
+  Timer? _crashRestartTimer;
+
   CoreController get _core => ref.read(coreHandlerProvider);
 
   @override
@@ -63,6 +69,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void dispose() {
+    _crashRestartTimer?.cancel();
     coreEventManager.removeListener(this);
     super.dispose();
   }
@@ -131,6 +138,42 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       context.showNotifier(message, level: MessageLevel.error);
     }
     super.onCrash(message);
+    _scheduleCrashRestart();
+  }
+
+  void _scheduleCrashRestart() {
+    final now = DateTime.now();
+    _recentCrashes
+      ..removeWhere((crash) => now.difference(crash) > _crashWindow)
+      ..add(now);
+    _crashRestartTimer?.cancel();
+    if (_recentCrashes.length > _maxCrashRestarts) {
+      commonPrint.log(
+        'core crashed ${_recentCrashes.length} times in $_crashWindow, '
+        'giving up on restarts',
+        logLevel: LogLevel.error,
+      );
+      ref.read(setupActionProvider.notifier).abandonRunning();
+      return;
+    }
+    _crashRestartTimer = Timer(
+      Duration(seconds: _recentCrashes.length),
+      _restartAfterCrash,
+    );
+  }
+
+  Future<void> _restartAfterCrash() async {
+    try {
+      await ref.read(coreActionProvider.notifier).restartCore();
+    } catch (error) {
+      commonPrint.log(
+        'core restart after crash failed: ${compactError(error)}',
+        logLevel: LogLevel.error,
+      );
+      if (mounted) {
+        ref.read(setupActionProvider.notifier).abandonRunning();
+      }
+    }
   }
 
   @override

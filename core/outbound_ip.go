@@ -63,7 +63,14 @@ func handleOutboundIp(params *OutboundIpParams) *OutboundIpResult {
 		next++
 		inFlight++
 		go func() {
-			answers <- probeOutboundIpSource(ctx, url, params.ProxyName, timeout)
+			var answer *OutboundIpResult
+			defer func() {
+				if r := recover(); r != nil {
+					logError("panic in outbound IP probe %s: %v\n%s", url, r, stackTrace())
+				}
+				answers <- answer
+			}()
+			answer = probeOutboundIpSource(ctx, url, params.ProxyName, timeout)
 		}()
 	}
 
