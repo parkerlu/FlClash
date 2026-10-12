@@ -184,6 +184,13 @@ class _Sidebar extends ConsumerWidget {
         isMacOS: system.isMacOS,
         version: version,
       ),
+      footer: Text(
+        appBuildVersion,
+        style: context.textTheme.labelSmall?.copyWith(
+          color: Colors.blueAccent,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
